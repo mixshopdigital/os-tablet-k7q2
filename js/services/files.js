@@ -84,6 +84,14 @@ OS.files = (() => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="${x(sheet)}"><Table>${row(cols.map((c) => c.label))}${rows.map((r) => row(cols.map((c) => (typeof c.get === 'function' ? c.get(r) : r[c.get])))).join('')}</Table></Worksheet>${licSheet(row)}</Workbook>`;
     return save(filename.replace(/\.xlsx?$/, '') + '.xls', xml, 'application/vnd.ms-excel');
   }
+  /** Libro de Excel con varias hojas: sheets = [{ name, rows, cols }]. */
+  function exportExcelBook(filename, sheets) {
+    const x = (v) => U.esc(v ?? '');
+    const row = (vals) => `<Row>${vals.map((v) => `<Cell><Data ss:Type="${typeof v === 'number' ? 'Number' : 'String'}">${x(v)}</Data></Cell>`).join('')}</Row>`;
+    const ws = sheets.map((sh) => `<Worksheet ss:Name="${x(sh.name.slice(0, 31))}"><Table>${row(sh.cols.map((c) => c.label))}${sh.rows.map((r) => row(sh.cols.map((c) => (typeof c.get === 'function' ? c.get(r) : r[c.get])))).join('')}</Table></Worksheet>`).join('');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${ws}${licSheet(row)}</Workbook>`;
+    return save(filename.replace(/\.xlsx?$/, '') + '.xls', xml, 'application/vnd.ms-excel');
+  }
   /** Parser CSV tolerante (separador , o ;, comillas, BOM). */
   function parseCSV(text) {
     text = text.replace(/^﻿/, '');
@@ -99,5 +107,5 @@ OS.files = (() => {
     return rows.filter((r) => r.some((c) => c.trim()));
   }
 
-  return { save, canOpenWindow, inFrame, openBlob, dataUrlToBlob, backupNow, restoreFromFile, autoBackupCheck, toCSV, exportCSV, exportExcel, parseCSV };
+  return { save, canOpenWindow, inFrame, openBlob, dataUrlToBlob, backupNow, restoreFromFile, autoBackupCheck, toCSV, exportCSV, exportExcel, exportExcelBook, parseCSV };
 })();

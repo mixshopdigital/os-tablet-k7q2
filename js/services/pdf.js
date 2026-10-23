@@ -211,17 +211,38 @@ OS.pdf = (() => {
     return { title: 'CONSENTIMIENTO', number: cs.number, date: cs.date, patient: patientBlock(p), blocks: [{ type: 'text', title: cs.name, text: cs.body }, { type: 'signature', labels: ['Firma del paciente o responsable', 'Profesional'] }], footer: 'Documento informativo. Revise su contenido con la normativa vigente aplicable a su práctica.' };
   }
 
+  /** Secciones que completan la ficha: tratamientos por pieza, citas, presupuestos, pagos, recetas y consentimientos. */
+  function completeBlocks(pid) {
+    const D = OS.domain; const S = OS.store.data; const out = [];
+    const sec = (title, head, rows, align) => { if (rows.length) { out.push({ type: 'text', title, text: `${rows.length} registro${rows.length > 1 ? 's' : ''}` }); out.push({ type: 'table', head, rows, ...(align ? { align } : {}) }); } };
+    const recs = S.toothRecords.filter((r) => r.patientId === pid).sort((a, b) => (a.date + (a.createdAt || 0)).localeCompare(b.date + (b.createdAt || 0)));
+    sec('Historial del odontograma (por pieza)', ['Fecha', 'Pieza', 'Estado', 'Detalle', 'Profesional'], recs.map((r) => [U.fmtDate(r.date), String(r.tooth), (D.STATES[r.state] || {}).label || r.state || '', [Object.keys(r.surfaces || {}).length ? 'Caras: ' + Object.keys(r.surfaces).join(', ') : '', r.note || ''].filter(Boolean).join(' · '), D.profName(r.professionalId)]));
+    const ap = S.appointments.filter((a) => a.patientId === pid).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    sec('Citas', ['Fecha', 'Hora', 'Tratamiento', 'Profesional', 'Estado'], ap.map((a) => [U.fmtDate(a.date), a.time, a.treatment || '', D.profName(a.professionalId), a.status || '']));
+    const qs = D.quotesOf(pid).sort((a, b) => a.date.localeCompare(b.date));
+    sec('Presupuestos', ['N.º', 'Fecha', 'Estado', 'Total', 'Pagado'], qs.map((q) => [q.number, U.fmtDate(q.date), D.quoteStatus(q), U.money(D.quoteTotals(q).total), U.money(D.paidFor(q.id))]), ['left', 'center', 'center', 'right', 'right']);
+    const pays = D.paymentsOf(pid).sort((a, b) => a.date.localeCompare(b.date));
+    sec('Pagos', ['Fecha', 'Recibo', 'Método', 'Concepto', 'Importe'], pays.map((p) => [U.fmtDate(p.date), p.receiptNo || '', p.method || '', p.note || '', U.money(p.amount)]), ['center', 'left', 'left', 'left', 'right']);
+    if (qs.length || pays.length) { const b = D.balance(pid); out.push({ type: 'kv', rows: [['Total aceptado', U.money(b.charged)], ['Total pagado', U.money(b.paid)], ['Saldo pendiente', U.money(b.balance)]] }); }
+    const rx = S.prescriptions.filter((r) => r.patientId === pid).sort((a, b) => a.date.localeCompare(b.date));
+    sec('Recetas', ['Fecha', 'N.º', 'Medicamentos', 'Indicaciones'], rx.map((r) => [U.fmtDate(r.date), r.number || '', (r.items || []).map((i) => [i.drug, i.dose, i.frequency, i.duration].filter(Boolean).join(' ')).join('; '), r.indications || '']));
+    const cs = S.consents.filter((c) => c.patientId === pid).sort((a, b) => a.date.localeCompare(b.date));
+    sec('Consentimientos', ['Fecha', 'N.º', 'Documento', 'Firmado'], cs.map((c) => [U.fmtDate(c.date), c.number || '', c.name || '', c.signed ? 'Sí' : 'No']));
+    return out;
+  }
+
   function historyModel(pid) {
     const D = OS.domain; const p = D.patient(pid); const m = OS.store.data.medical[pid] || {};
     const yn = (v) => (v ? 'Sí' : 'No');
     const notes = OS.store.data.clinicalNotes.filter((n) => n.patientId === pid).sort((a, b) => b.date.localeCompare(a.date));
     const teeth = [...D.UPPER, ...D.LOWER].map((t) => ({ t, s: D.toothState(pid, t) })).filter((x) => x.s.whole || Object.keys(x.s.surfaces).length);
     return {
-      title: 'HISTORIA CLÍNICA', date: U.today(), patient: patientBlock(p, p.birthDate ? ['Edad', `${U.age(p.birthDate)} años`] : null),
+      title: 'FICHA COMPLETA DEL PACIENTE', date: U.today(), patient: patientBlock(p, p.birthDate ? ['Edad', `${U.age(p.birthDate)} años`] : null),
       blocks: [
         { type: 'kv', rows: [['Alergias', m.allergies], ['Medicamentos', m.medications], ['Enfermedades', m.diseases], ['Antecedentes', m.background], ['Cirugías', m.surgeries], ['Diabetes / Hipertensión', `${yn(m.diabetes)} / ${yn(m.hypertension)}`], ['Cardiopatías / Coagulación', `${yn(m.cardio)} / ${yn(m.coagulation)}`], ['Embarazo', yn(m.pregnant)], ['Observaciones', m.other]] },
         { type: 'table', head: ['Pieza', 'Estado actual'], rows: teeth.map(({ t, s }) => [String(t), [s.whole && D.STATES[s.whole].label, ...Object.entries(s.surfaces).map(([k, v]) => `${D.STATES[v].label} (${k})`)].filter(Boolean).join(', ')]) },
         { type: 'table', head: ['Fecha', 'Profesional', 'Motivo', 'Procedimiento', 'Indicaciones'], rows: notes.map((n) => [U.fmtDate(n.date), D.profName(n.professionalId), n.reason, [n.diagnosis, n.procedure].filter(Boolean).join(' — '), n.indications || '']) },
+        ...completeBlocks(pid),
       ],
       footer: 'Documento confidencial. Contiene información clínica protegida.',
     };

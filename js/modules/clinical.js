@@ -28,7 +28,7 @@ OS.views.clinical = (() => {
       <div class="form-section"><h4>Antecedentes</h4><div class="form-grid">
         ${ui.field('Enfermedades', ui.textarea('diseases', m.diseases, 'rows="2"'))}${ui.field('Antecedentes', ui.textarea('background', m.background, 'rows="2"'))}
         ${ui.field('Cirugías', ui.textarea('surgeries', m.surgeries, 'rows="2"'))}${ui.field('Otras observaciones', ui.textarea('other', m.other, 'rows="2"'))}</div></div>
-      ${can ? `<div class="row gap"><span class="muted small" id="mh-state"></span><button class="btn btn-ghost right" type="button" id="mh-pdf">${ui.icon('download')}<span>Historia clínica PDF</span></button><button class="btn btn-primary" type="submit">${ui.icon('check')}<span>Guardar historia clínica</span></button></div>` : ''}</form>`;
+      ${can ? `<div class="row gap"><span class="muted small" id="mh-state"></span><button class="btn btn-ghost right" type="button" id="mh-pdf">${ui.icon('download')}<span>Ficha completa (PDF)</span></button><button class="btn btn-primary" type="submit">${ui.icon('check')}<span>Guardar historia clínica</span></button></div>` : ''}</form>`;
     const f = el.querySelector('#mh');
     if (!can) f.querySelectorAll('textarea').forEach((t) => (t.readOnly = true));
     el.querySelector('#mh-pdf')?.addEventListener('click', () => OS.pdf.present(OS.pdf.historyModel(pid), { patientId: pid, category: 'Estudios' }));
